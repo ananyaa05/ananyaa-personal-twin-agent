@@ -1,0 +1,20 @@
+{
+  "name": "Ananyaa's Personal Twin",
+  "version": "1.0.0",
+  "description": "A lifestyle balance agent that manages CSE academic tasks, baking, and poetry based on energy levels.",
+  "capabilities": [
+    "task_prioritization",
+    "mood_analysis",
+    "creative_scheduling"
+  ],
+  "author": "Ananyaa M.",
+  "repository": "https://github.com/ananyaa05/ananyaa-personal-twin-agent",
+  "tools_used": [
+    "log_energy_level",
+    "log_mood_state",
+    "get_pending_tasks",
+    "get_creative_log",
+    "get_exercise_log"
+  ],
+  "runtime": "Local (Ollama/TinyLlama)"
+}
