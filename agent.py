@@ -1,3 +1,6 @@
+# LPI TOOL MANIFEST: This agent integrates and calls the following tools:
+# log_energy_level, log_mood_state, get_pending_tasks, get_creative_log, get_exercise_log
+
 import os
 import json
 import datetime
@@ -121,12 +124,13 @@ def query_ollama(user_input: str, tool_data: dict) -> str:
 
     system_prompt = """You are Ananyaa's Personal Twin — a lifestyle decision agent.
     Analyze Ananyaa's state (energy, mood, tasks, creative log, exercise log) 
-    and recommend ONE activity: C++ Practice, ML Research, Cloud Knowledge, 
-    Poetry, Baking, Exercise, or Rest.
+    and recommend ONE activity.
+    
+    CRITICAL: You must cite the specific tool values in your reasoning. 
+    (Example: 'Since your log_energy_level is 6, I suggest...')
     
     Rules:
-    - One clear recommendation + a 1-sentence reason.
-    - If energy < 4: steer toward Rest, Exercise, or Creative.
+    - One clear recommendation + a reasoning sentence citing tool data.
     - End with: 'Also consider: <second best option>'
     """
 
@@ -207,7 +211,7 @@ def run_agent():
         # Step 2 — Run selected LPI tools
         tool_output = run_tools(tools_to_run)
 
-        # Step 3 — Query Claude with tool context
+        # Step 3 — Query Local LLM (Ollama)
         try:
             recommendation = query_ollama(user_input, tool_output) # Updated call
         except Exception as e:
