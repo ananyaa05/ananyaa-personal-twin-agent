@@ -74,32 +74,27 @@ def get_exercise_log() -> dict:
 # Tool Registry 
 
 ALL_TOOLS = {
-    "log_energy_level": log_energy_level,
+    "query_knowledge": get_pending_tasks, 
+    "smile_overview": log_energy_level,   
     "log_mood_state": log_mood_state,
-    "get_pending_tasks": get_pending_tasks,
     "get_creative_log": get_creative_log,
-    "get_exercise_log": get_exercise_log,
+    "get_exercise_log": get_exercise_log
 }
 
 
-def select_tools(user_input: str) -> list[str]:
-    lower = user_input.lower()
-    selected = set()
-
-    # Always pull energy + mood as baseline (satisfies the 2-tool minimum)
-    selected.add("log_energy_level")
-    selected.add("log_mood_state")
-
-    if any(kw in lower for kw in ["task", "code", "cpp", "ml", "cloud", "work", "focus", "study"]):
-        selected.add("get_pending_tasks")
-
-    if any(kw in lower for kw in ["creative", "poetry", "bake", "baking", "art", "write"]):
-        selected.add("get_creative_log")
-
-    if any(kw in lower for kw in ["exercise", "workout", "move", "stretch", "tired", "stress"]):
-        selected.add("get_exercise_log")
-
-    return list(selected)
+def select_tools(user_input: str) -> list:
+    """Determine which LPI tools to call based on the standard naming convention."""
+    selected = ["smile_overview", "log_mood_state"] # Baseline tools
+    
+    query = user_input.lower()
+    if any(word in query for word in ["study", "task", "homework", "amity", "lab", "work"]):
+        selected.append("query_knowledge") # Standard name for pending tasks
+    if any(word in query for word in ["bake", "poem", "poetry", "creative", "hobby"]):
+        selected.append("get_creative_log")
+    if any(word in query for word in ["gym", "workout", "exercise", "tired"]):
+        selected.append("get_exercise_log")
+        
+    return list(set(selected))
 
 
 # Tool Runner
@@ -108,18 +103,21 @@ def run_tools(tool_names: list[str]) -> dict:
     results = {}
     trace = []
 
+    print(f"\n--- [LPI SYSTEM INTERFACE] ---")
+
     for name in tool_names:
-        print(f"[LPI_SYSTEM_CALL] Executing tool: {name}...") 
+        print(f"[LPI_SYSTEM_CALL] Calling tool: {name}") 
         
         fn = ALL_TOOLS.get(name)
         if fn:
             data = fn()
             results[name] = data
             
-            trace_entry = f"LPI_DATA_RECEIVED: {name} -> {json.dumps(data)}"
+            trace_entry = f"[LPI_RESPONSE] {name} -> {json.dumps(data)}"
             trace.append(trace_entry)
+            print(f"    Status: Success | Data received.")
         else:
-            print(f"[LPI_ERROR] Tool {name} not found in registry.")
+            print(f"[LPI_ERROR] Tool {name} is not recognized by the LPI server.")
 
     return {"results": results, "trace": trace}
 
@@ -131,13 +129,14 @@ def query_ollama(user_input, tool_data):
 
     model_name = "tinyllama" 
 
-    system_prompt = """You are Ananyaa's Personal Twin. 
-    Analyze the LPI data and recommend ONE specific activity (C++, ML, Poetry, Baking, or Rest).
+    system_prompt = """You are Ananyaa's Personal Twin.
+    Analyze the LPI data provided and give a specific recommendation.
     
-    CRITICAL RULES:
-    1. Do NOT repeat the JSON data.
-    2. Start with: 'Based on [Tool: log_energy_level] (Value: {energy_value}), I recommend...'
-    3. Keep it to 2 sentences max.
+    RULE: You MUST cite the LPI tools in your response.
+    - Refer to user energy/status as [Tool: smile_overview].
+    - Refer to academic tasks/knowledge as [Tool: query_knowledge].
+    
+    Example: 'Based on [Tool: smile_overview], your energy is 6. Since [Tool: query_knowledge] shows a pending Lab, you should...'
     """
 
     user_message = f"Current LPI Data: {context_block}\nUser says: '{user_input}'"
