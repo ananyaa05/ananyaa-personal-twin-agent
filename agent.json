@@ -1,20 +1,17 @@
 {
-  "name": "Ananyaa's Personal Twin",
+  "name": "LPI Methodology Consultant Agent",
   "version": "1.0.0",
-  "description": "A lifestyle balance agent that manages CSE academic tasks, baking, and poetry based on energy levels.",
+  "description": "A digital twin methodology consultant that queries the LPI Knowledge Server to provide guidance on the SMILE framework and best practices.",
   "capabilities": [
-    "task_prioritization",
-    "mood_analysis",
-    "creative_scheduling"
+    "methodology_guidance",
+    "knowledge_retrieval",
+    "explainable_recommendations"
   ],
   "author": "Ananyaa M.",
   "repository": "https://github.com/ananyaa05/ananyaa-personal-twin-agent",
   "tools_used": [
-    "log_energy_level",
-    "log_mood_state",
-    "get_pending_tasks",
-    "get_creative_log",
-    "get_exercise_log"
+    "smile-overview",
+    "query-knowledge"
   ],
   "runtime": "Local (Ollama/TinyLlama)"
 }
