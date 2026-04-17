@@ -6,6 +6,14 @@ A Personal Twin agent built for LPI Developer Kit Level 3. This repository conta
   2. Explainable AI (XAI): Provides a full "Trace Report" showing exactly which data points were used to make a recommendation.
   3. Local Execution: Powered by Ollama (TinyLlama) to ensure data privacy and zero-cost offline processing.
 
+## LPI Tools Integrated
+  The agent queries the following LPI tools to build context:
+  * `log_energy_level`: Monitors cognitive bandwidth.
+  * `log_mood_state`: Tracks emotional readiness.
+  * `get_pending_tasks`: Analyzes CSE academic workload.
+  * `get_creative_log`: Monitors creative engagement (Baking/Poetry).
+  * `get_exercise_log`: Tracks physical well-being.
+
 ## Tech Stack
   1. Language: Python 3.x
   2. Brain: TinyLlama (via Ollama)

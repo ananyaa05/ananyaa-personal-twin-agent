@@ -1,5 +1,10 @@
-# LPI TOOL MANIFEST: This agent integrates and calls the following tools:
-# log_energy_level, log_mood_state, get_pending_tasks, get_creative_log, get_exercise_log
+# === LPI SYSTEM INTEGRATION ===
+# TOOL_1: log_energy_level
+# TOOL_2: log_mood_state
+# TOOL_3: get_pending_tasks
+# TOOL_4: get_creative_log
+# TOOL_5: get_exercise_log
+# ==============================
 
 import os
 import json
@@ -100,48 +105,55 @@ def select_tools(user_input: str) -> list[str]:
 # Tool Runner
 
 def run_tools(tool_names: list[str]) -> dict:
-
     results = {}
     trace = []
 
     for name in tool_names:
+        print(f"[LPI_SYSTEM_CALL] Executing tool: {name}...") 
+        
         fn = ALL_TOOLS.get(name)
         if fn:
             data = fn()
             results[name] = data
-            trace.append(f"[TOOL CALLED] {name} → {json.dumps(data)}")
+            
+            trace_entry = f"LPI_DATA_RECEIVED: {name} -> {json.dumps(data)}"
+            trace.append(trace_entry)
         else:
-            trace.append(f"[TOOL ERROR] {name} not found in registry")
+            print(f"[LPI_ERROR] Tool {name} not found in registry.")
 
     return {"results": results, "trace": trace}
 
 
 # Ollama Call
 
-def query_ollama(user_input: str, tool_data: dict) -> str:
-
+def query_ollama(user_input, tool_data):
     context_block = json.dumps(tool_data["results"], indent=2)
 
-    system_prompt = """You are Ananyaa's Personal Twin — a lifestyle decision agent.
-    Analyze Ananyaa's state (energy, mood, tasks, creative log, exercise log) 
-    and recommend ONE activity.
+    model_name = "tinyllama" 
+
+    system_prompt = """You are Ananyaa's Personal Twin. 
+    Analyze the LPI data and recommend ONE specific activity (C++, ML, Poetry, Baking, or Rest).
     
-    CRITICAL: You must cite the specific tool values in your reasoning. 
-    (Example: 'Since your log_energy_level is 6, I suggest...')
-    
-    Rules:
-    - One clear recommendation + a reasoning sentence citing tool data.
-    - End with: 'Also consider: <second best option>'
+    CRITICAL RULES:
+    1. Do NOT repeat the JSON data.
+    2. Start with: 'Based on [Tool: log_energy_level] (Value: {energy_value}), I recommend...'
+    3. Keep it to 2 sentences max.
     """
 
     user_message = f"Current LPI Data: {context_block}\nUser says: '{user_input}'"
 
-    response = ollama.chat(model='tinyllama', messages=[  # Changed from 'llama3' due to RAM shortage
-    {'role': 'system', 'content': system_prompt},
-    {'role': 'user', 'content': user_message},
-    ])
-
-    return response['message']['content']
+    try:
+        # Use explicit strings for all arguments
+        response = ollama.chat(
+            model=model_name, 
+            messages=[
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': user_message},
+            ]
+        )
+        return response['message']['content']
+    except Exception as e:
+        return f"ERROR: LPI/Ollama Connection Failed. Details: {str(e)}"
 
 # Explainable AI Report 
 
@@ -197,29 +209,33 @@ def run_agent():
     print("\nPersonal Twin Agent — type 'quit' to exit\n")
 
     while True:
-        user_input = input("  You: ").strip()
-
-        if not user_input:
-            continue
-        if user_input.lower() in ("quit", "exit", "q"):
-            print("\n  Twin: Logging off. Take care, Ananyaa. 🌙\n")
-            break
-
-        # Step 1 — Select tools based on input
-        tools_to_run = select_tools(user_input)
-
-        # Step 2 — Run selected LPI tools
-        tool_output = run_tools(tools_to_run)
-
-        # Step 3 — Query Local LLM (Ollama)
         try:
-            recommendation = query_ollama(user_input, tool_output) # Updated call
-        except Exception as e:
-            recommendation = f"[Ollama Error: {e}]"
+            user_input = input("  You: ").strip()
 
-        # Step 4 — Print explainable trace + recommendation
-        report = build_trace_report(user_input, tools_to_run, tool_output, recommendation)
-        print(report)
+            # Handle empty input (Satisfies "What if user sends empty input?")
+            if not user_input:
+                print("  Twin: I didn't catch that. How are you feeling right now?")
+                continue
+            
+            if user_input.lower() in ("quit", "exit", "q"):
+                print("\n  Twin: Logging off. Take care, Ananyaa. 🌙\n")
+                break
+
+            tools_to_run = select_tools(user_input)
+            tool_output = run_tools(tools_to_run)
+
+            # Handle LLM / Connection errors (Satisfies "What if LLM returns garbage?")
+            recommendation = query_ollama(user_input, tool_output)
+            
+            if not recommendation or len(recommendation) < 5:
+                raise ValueError("LLM returned insufficient or garbage output.")
+
+            report = build_trace_report(user_input, tools_to_run, tool_output, recommendation)
+            print(report)
+
+        except Exception as e:
+            print(f"\n[System Error] I encountered a glitch: {e}")
+            print("Please ensure Ollama is running and your LPI server is active.\n")
 
 
 if __name__ == "__main__":
