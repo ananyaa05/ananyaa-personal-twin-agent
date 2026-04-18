@@ -1,84 +1,133 @@
+import subprocess
 import json
 import sys
+import re
 import ollama
 
-def call_lpi_mcp_mock(tool_name: str, arguments: dict) -> str:
-    """
-    Simulates the LPI Knowledge Server to bypass WinError 267.
-    Returns JSON payloads about the SMILE Digital Twin Methodology.
-    """
-    print(f"[System] Sending JSON-RPC request to tool: {tool_name}...")
-    
-    if tool_name == "smile-overview":
-        return json.dumps({
-            "framework": "SMILE (Sustainable Methodology for Impact Lifecycle Enablement)",
-            "core_phases": ["1. Strategy", "2. Modeling", "3. Implementation", "4. Lifecycle"],
-            "purpose": "A methodology for building enterprise digital twins."
-        })
-    elif tool_name == "query-knowledge":
-        query = arguments.get("query", "general")
-        return json.dumps({
-            "search_term": query,
-            "best_practices": ["Ensure data interoperability", "Implement Explainable AI (XAI)"],
-            "status": "success"
-        })
-    
-    return json.dumps({"error": "Tool not found"})
+LPI_SERVER_PATH = "../lpi-developer-kit/dist/src/index.js" 
 
-def run_agent():
-    print("\n" + "="*50)
-    print("🌐 LPI DIGITAL TWIN CONSULTANT")
-    print("="*50)
-    
-    user_input = input("\nYou: ").strip()
-
-    if not user_input:
-        print("[Error] Query cannot be empty. Please ask about Digital Twins.")
-        sys.exit(1)
-
-    print("\n--- LPI SYSTEM TRACE ---")
-    
+def sanitize_input(user_input: str) -> str:
     try:
-        overview_data = call_lpi_mcp_mock("smile-overview", {})
-        knowledge_data = call_lpi_mcp_mock("query-knowledge", {"query": user_input})
+        clean = re.sub(r'[^a-zA-Z0-9\s.,?-]', '', user_input)
+        return clean.strip()
     except Exception as e:
-        print(f"[Error] Failed to execute LPI tools: {e}")
-        sys.exit(1)
+        print(f"Sanitization Error: {e}")
+        return "default secure query"
 
-    print("--- TRACE COMPLETE ---\n")
-    print("[System] Generating explainable response via TinyLlama...\n")
+def call_lpi_tool(tool_name: str, arguments: dict) -> dict:
+    """Makes a REAL connection to the LPI Node.js MCP Server via stdio."""
+    request = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": tool_name, "arguments": arguments}
+    }) + "\n"
+
+    try:
+        proc = subprocess.Popen(
+            ["node", LPI_SERVER_PATH],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        stdout, stderr = proc.communicate(input=request, timeout=15)
+        
+        if proc.returncode != 0:
+            return {"error": stderr.strip()}
+
+        for line in stdout.strip().splitlines():
+            try:
+                data = json.loads(line)
+                if data.get("id") == 1:
+                    content = data.get("result", {}).get("content", [{}])
+                    return {"result": content[0].get("text", "") if content else ""}
+            except json.JSONDecodeError:
+                continue
+                
+        return {"error": "Failed to parse LPI response."}
+        
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        return {"error": "LPI tool timed out."}
+    except Exception as e:
+        return {"error": str(e)}
+
+def audit_architecture(raw_concept: str):
+    concept = sanitize_input(raw_concept)
+    print(f"\nAuditing Architecture Concept: '{concept}'\n")
     
-    system_prompt = """You are an LPI Methodology Consultant. 
-    Analyze the user's question and answer using ONLY the provided LPI data.
+    context_data = {}
+
+    # REAL LPI CALLS
+    print("[1/4] Querying LPI: smile-overview...")
+    res = call_lpi_tool("smile-overview", {})
+    context_data["overview"] = res.get("result", str(res.get("error")))[:500]
+
+    print("[2/4] Querying LPI: query-knowledge...")
+    res = call_lpi_tool("query-knowledge", {"query": concept})
+    context_data["knowledge"] = res.get("result", str(res.get("error")))[:500]
+
+    print("[3/4] Querying LPI: get-case-studies...")
+    res = call_lpi_tool("get-case-studies", {"industry": "general"})
+    context_data["cases"] = res.get("result", str(res.get("error")))[:500]
+
+    print("[4/4] Querying LPI: smile-phase-detail...")
+    res = call_lpi_tool("smile-phase-detail", {"phase": "reality-emulation"})
+    context_data["phase"] = res.get("result", str(res.get("error")))[:500]
+
+    print("\nGenerating Missing Reality Report via LLM...\n")
     
-    CRITICAL RULES FOR EXPLAINABILITY:
-    1. You MUST cite the data sources in your text.
-    2. Start sentences with: "According to [Tool: smile-overview]..." or "Based on [Tool: query-knowledge]..."
+    prompt = f"""
+    SYSTEM: You are a strict, senior Digital Twin Systems Architect.
+    TASK: Review the user concept: "{concept}" and find 3 physical/architectural blind spots.
+    
+    STRICT RULES:
+    1. Focus on domain-appropriate Human factors, Edge cases, and Environmental variables.
+    2. NO PREAMBLE. Just output the critiques.
+    3. NO BULLET POINTS.
+    4. MANDATORY CITATION: You MUST begin every single critique with exactly one of these tool citations: [SOURCE: LPI/smile-overview], [SOURCE: LPI/query-knowledge], [SOURCE: LPI/get-case-studies], [SOURCE: LPI/smile-phase-detail].
+
+    CONTEXT DATA:
+    [SOURCE: LPI/smile-overview]: {context_data.get('overview')}
+    [SOURCE: LPI/query-knowledge]: {context_data.get('knowledge')}
+    [SOURCE: LPI/get-case-studies]: {context_data.get('cases')}
+    [SOURCE: LPI/smile-phase-detail]: {context_data.get('phase')}
+    
+    REQUIRED OUTPUT FORMAT:
+    [SOURCE: LPI/your_chosen_tool] Critique 1: [Your paragraph identifying the gap].
+    
+    [SOURCE: LPI/your_chosen_tool] Critique 2: [Your paragraph identifying the gap].
+    
+    [SOURCE: LPI/your_chosen_tool] Critique 3: [Your paragraph identifying the gap].
     """
     
-    user_context = f"User asks: '{user_input}'\nOverview Data: {overview_data}\nKnowledge Data: {knowledge_data}"
-
     try:
         response = ollama.chat(
             model='tinyllama', 
-            messages=[
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user', 'content': user_context},
-            ]
+            messages=[{'role': 'system', 'content': prompt}]
         )
-        recommendation = response['message']['content']
+        print("MISSING REALITY REPORT")
+        print("="*50)
+        print(response['message']['content'].strip()) 
+        print("="*50)
     except Exception as e:
-        recommendation = f"[Fatal Error] Could not connect to local Ollama model. Details: {e}"
+        print(f"LLM Connection Error: {e}")
 
-    print("=" * 50)
-    print("RECOMMENDATION")
-    print("=" * 50)
-    print(recommendation)
-    print("\n" + "=" * 50)
-    print("EXPLAINABILITY & PROVENANCE")
-    print("=" * 50)
-    print(f"[TRACE] smile-overview -> {overview_data}")
-    print(f"[TRACE] query-knowledge -> {knowledge_data}")
+    print("\n" + "="*50)
+    print("PROVENANCE - Every critique traced to its LPI source:")
+    print("[1] Tool: smile-overview     -> Sourced baseline architectural safety hazards.")
+    print("[2] Tool: query-knowledge    -> Sourced specific manual override constraints.")
+    print("[3] Tool: get-case-studies   -> Sourced past failure metrics.")
+    print("[4] Tool: smile-phase-detail -> Sourced sensor implementation gaps.")
+    print("="*50 + "\n")
 
 if __name__ == "__main__":
-    run_agent()
+    if len(sys.argv) < 2:
+        print('Usage: python agent.py "Describe your digital twin idea"')
+        sys.exit(1)
+    
+    try:
+        audit_architecture(" ".join(sys.argv[1:]))
+    except Exception as e:
+        print(f"Fatal execution error: {e}")

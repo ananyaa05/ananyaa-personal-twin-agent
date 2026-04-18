@@ -1,17 +1,19 @@
 {
-  "name": "LPI Methodology Consultant Agent",
-  "version": "1.0.0",
-  "description": "A digital twin methodology consultant that queries the LPI Knowledge Server to provide guidance on the SMILE framework and best practices.",
+  "name": "Digital Twin Architecture Auditor",
+  "version": "2.0.0",
+  "description": "A senior architecture agent that connects directly to the LPI MCP Node server to audit digital twin concepts and generate 'Missing Reality Reports' with strict data provenance.",
   "capabilities": [
-    "methodology_guidance",
-    "knowledge_retrieval",
-    "explainable_recommendations"
+    "architecture_auditing",
+    "methodology_compliance",
+    "risk_assessment"
   ],
   "author": "Ananyaa M.",
   "repository": "https://github.com/ananyaa05/ananyaa-personal-twin-agent",
   "tools_used": [
     "smile-overview",
-    "query-knowledge"
+    "query-knowledge",
+    "get-case-studies",
+    "smile-phase-detail"
   ],
-  "runtime": "Local (Ollama/TinyLlama)"
+  "runtime": "Local (Ollama/TinyLlama + Node.js MCP Server)"
 }
